@@ -12,5 +12,7 @@ After running `300vw_preprocess.py` and `confer_preprocess.py`, you will have se
 Examples of how a boundary box can be visualized is contained in notebooks/visualize_results.ipynb.
 
 A sample is shown below:
+
 ![Example 1.](./images/ex1.png)
+
 ![Example 2.](./images/ex2.png)

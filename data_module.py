@@ -2,8 +2,11 @@ import pytorch_lightning as pl
 
 
 class FaceTrackDataModule(pl.LightningDataModule):
+    """Input paths to folders that contain images and corresponding annotations.
 
-    def __init__(self, data_dir: str = PATH, batch_size):
+    """
+
+    def __init__(self, data_dir, batch_size):
         super().__init__()
         self.batch_size = batch_size
 

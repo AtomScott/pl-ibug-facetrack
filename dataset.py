@@ -8,6 +8,7 @@ from torch.utils.data import Dataset, IterableDataset
 from torchvision import transforms
 from tqdm import tqdm
 from pathlib import Path
+from typing import Union
 
 # Global Variables
 SUPPORTED_IMAGE_EXTs = ['npy']
@@ -58,3 +59,12 @@ class FaceTrackDatasetFolder(Dataset):
         # x, y = torch.split(torch.tensor(X, dtype=torch.float32),
         #                    [x_len, y_len], dim=-1)
         return x, y
+
+def read_pts(filename):
+    x = np.loadtxt(filename, comments=("version:", "n_points:", "{", "}"))
+    x = x.reshape(-1, 68, 2)
+    return x
+
+
+def save_pts(filename, x):
+    return np.savetxt(filename, x, comments=("version:", "n_points:", "{", "}"))
