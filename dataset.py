@@ -1,6 +1,7 @@
 import pathlib
 import os
-
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import numpy as np
 import pandas as pd
 import torch
@@ -9,6 +10,8 @@ from torchvision import transforms
 from tqdm import tqdm
 from pathlib import Path
 from typing import Union
+from PIL import Image
+from torchvision.transforms import ToTensor
 
 # Global Variables
 SUPPORTED_IMAGE_EXTs = ['npy']
@@ -21,45 +24,55 @@ class FaceTrackDatasetFolder(Dataset):
     There must be one annotation file for each image file.
     """
     
-    def __init__(self, root: str, extensions: [str]) -> None:
-        self.root = root
+    def __init__(self, root_path: str) -> None:
+        self.root_path = root_path
 
-        extensions = [ext.replace(".", "") for ext in extensions]
-        paths = [path for ext in extensions
-                 for path in pathlib.Path(root).glob(f'**/*.{ext}')]
+        try:
+            p = Path(root_path)
+            frame_paths = sorted(list(p.glob('**/*.jpg')) + list(p.glob('**/*.png')))
+            annot_paths = sorted(list(p.glob('**/*.pts')))
 
-        unsupported_exts = []
-        for i, ext in enumerate(extensions):
-            if ext not in SUPPORTED_EXTs:
-                unsupported_exts.append(ext)
+            assert len(frame_paths) == len(annot_paths), f"{root_path}: {len(frame_paths)} != {len(annot_paths)}"
 
-        if unsupported_exts:
-            msg = f"Unsupported extensions are specified: .{' .'.join(unsupported_exts)}"
-            raise RuntimeError(msg)
-        if len(paths) == 0:
-            msg = "Found 0 files in subfolders of: {}\n".format(self.root)
-            if extensions is not None:
-                msg += "Supported extensions are: {}".format(
-                    ",".join(extensions))
-            raise RuntimeError(msg)
+        except AssertionError() as ae:
+            error_count += 1
+            print(f"{root_path} has unmatching number of frames and annotations.")
 
-        self.extensions = extensions
-        self.paths = paths
-        self.x_len = x_len
-        self.y_len = y_len
+            frame_paths = []
+            annot_paths = []
 
+
+        self.frame_paths = frame_paths
+        self.annot_paths = annot_paths
+        self.transforms = ToTensor()
+                
     def __len__(self):
-        return len(self.paths)
+        return len(self.frame_paths)
 
     def __getitem__(self, i):
-        x_len = self.x_len
-        y_len = self.y_len
+        x = pil_loader(self.frame_paths[i])
+        x = self.transforms(x)
 
-        x, y = np.load(self.paths[i], allow_pickle=True)
-        # x, y = torch.split(torch.tensor(X, dtype=torch.float32),
-        #                    [x_len, y_len], dim=-1)
+        _pts = read_pts(self.annot_paths[i])
+        y = []
+        for pts in _pts:
+            xmin, ymin = pts.min(axis=0)
+            xmax, ymax = pts.max(axis=0)
+            y.append([xmin,ymin, xmax,ymax])
+        y = torch.tensor(y)
+
         return x, y
 
+    @staticmethod
+    def plot(x, y):
+
+        fig,ax = plt.subplots(1)
+        ax.imshow(x)
+        for xmin,ymin, xmax,ymax,  in y:
+            rect = patches.Rectangle((xmin,ymin),xmax-xmin,ymax-ymin,linewidth=1,edgecolor='r',facecolor='none')
+            ax.add_patch(rect)
+        plt.show()
+        
 def read_pts(filename):
     x = np.loadtxt(filename, comments=("version:", "n_points:", "{", "}"))
     x = x.reshape(-1, 68, 2)
@@ -68,3 +81,9 @@ def read_pts(filename):
 
 def save_pts(filename, x):
     return np.savetxt(filename, x, comments=("version:", "n_points:", "{", "}"))
+
+def pil_loader(path):
+    # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+    with open(path, 'rb') as f:
+        img = Image.open(f)
+        return img.convert('RGB')
